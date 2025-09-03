@@ -68,6 +68,7 @@ html, body {
 	font-weight: 600;
 	font-size: 20px;
 	display: inline-block;
+	vertical-align: top;
 
 	padding-top: 2px;
 	/* margin-left: -40px; */
@@ -84,10 +85,30 @@ html, body {
 	font-weight: 600;
 	font-size: 20px;
 	display: inline-block;
+	vertical-align: top;
+	padding-top: 7px;
 }
 
 .step-title a {
 	color: black !important;
+}
+
+/* Section spacing for better visual separation */
+.step-number + .step-title {
+	vertical-align: top;
+}
+
+/* Extra spacing for specific sections */
+.step-number[style*="margin-top: 10px"] {
+	clear: both;
+	display: inline-block;
+	margin-top: 20px !important;
+}
+
+/* Ensure step title aligns with step number when extra margin is applied */
+.step-number[style*="margin-top: 10px"] + .step-title {
+	vertical-align: top;
+	margin-top: 0;
 }
 
 hr {

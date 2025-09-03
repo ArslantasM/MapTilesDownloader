@@ -91,7 +91,7 @@
 
 			<div class="row">
 				<div class="input-field col s10">
-					<input id="source-box" type="text" value='http://ecn.t0.tiles.virtualearth.net/tiles/a{quad}.jpeg?g=129&mkt=en&stl=H'>
+					<input id="source-box" type="text" value='https://mt0.google.com/vt?lyrs=s&x={x}&y={y}&z={z}'>
 					<label for="source-box">Map Tile Source</label>
 				</div>
 				<div class="input-field col s2">
@@ -110,8 +110,85 @@
 
 		<div class='step-number'>
 			4
+		</div><div class="step-title" style="display: inline-block; vertical-align: top; margin-left: 12px;">
+			<a href='javascript:void(0)' id='historical-analysis-toggle'>Map Analysis (+)</a>
 		</div>
-		<div class="step-title">
+
+		<div style='display:none;' id='historical-analysis' class='sidebar-section row'>
+
+			<div class="col s12">
+				<p style="font-size: 12px; color: #888; margin: 5px 0;">Compare the same area at different time periods</p>
+			</div>
+
+			<!-- Year Slider Controls -->
+			<div class="col s12" style="margin-bottom: 15px;">
+				<label style="font-size: 12px; color: #666;">Primary Period Selection:</label>
+				<div style="margin: 10px 0;">
+					<input type="range" id="year-slider-1" min="2000" max="2024" value="2024" step="1" style="width: 100%;">
+					<div style="display: flex; justify-content: space-between; font-size: 10px; color: #999;">
+						<span>2000</span><span>2005</span><span>2010</span><span>2015</span><span>2020</span><span>Current</span>
+					</div>
+					<div id="year-display-1" style="text-align: center; margin-top: 5px; color: #26a69a; font-weight: bold;">Current (2024)</div>
+				</div>
+			</div>
+
+			<!-- Google API Format Selector -->
+			<div class="col s12" style="margin-bottom: 15px;">
+				<label style="font-size: 12px; color: #666;">Google Historical API Format:</label>
+				<select id="google-api-format" style="display: block; width: 100%; margin-top: 5px;">
+					<option value="format1">&t=YEAR (Classic)</option>
+					<option value="format2">&date=YEAR-01-01</option>
+					<option value="format3">KH Service</option>
+					<option value="format4">Earth Engine</option>
+				</select>
+				<div style="font-size: 10px; color: #999; margin-top: 3px;">Try different formats if historical data doesn't work</div>
+			</div>
+
+			<!-- Comparison Toggle -->
+			<div class="col s12">
+				<div class="switch" style="margin-bottom: 15px;">
+					<label>
+						<span style="font-size: 12px;">Single Download</span>
+						<input type="checkbox" id="enable-comparison">
+						<span class="lever"></span>
+						<span style="font-size: 12px;">Comparative Download</span>
+					</label>
+				</div>
+			</div>
+
+			<!-- Second Period (When comparison is active) -->
+			<div class="col s12" id="comparison-controls" style="display: none; margin-bottom: 15px;">
+				<label style="font-size: 12px; color: #666;">Comparison Period:</label>
+				<div style="margin: 10px 0;">
+					<input type="range" id="year-slider-2" min="2000" max="2023" value="2010" step="1" style="width: 100%;">
+					<div style="display: flex; justify-content: space-between; font-size: 10px; color: #999;">
+						<span>2000</span><span>2005</span><span>2010</span><span>2015</span><span>2020</span><span>2023</span>
+					</div>
+					<div id="year-display-2" style="text-align: center; margin-top: 5px; color: #ff6b35; font-weight: bold;">2010</div>
+				</div>
+			</div>
+
+			<!-- Region Preservation Notice and Status -->
+			<div class="col s12">
+				<div style="background: #e8f5e8; padding: 8px; border-radius: 4px; margin-bottom: 15px; border-left: 3px solid #4caf50;">
+					<div style="font-size: 11px; color: #2e7d32;"><strong>Tip:</strong> Selected area is preserved, same region downloaded for different periods</div>
+				</div>
+				
+				<!-- Region Selection Status -->
+				<div id="region-status" style="background: #fff3e0; padding: 8px; border-radius: 4px; border-left: 3px solid #ff9800; display: none;">
+					<div style="font-size: 11px; color: #f57500;">
+						<span id="region-status-icon">⚠️</span> <span id="region-status-text">No region selected yet</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Section Separator -->
+		<div style='margin-bottom: 20px;'></div>
+
+		<div class='step-number' style='margin-top: 10px;'>
+			5
+		</div><div class="step-title" style="display: inline-block; vertical-align: top; margin-left: 12px;">
 			<a href='javascript:void(0)' id='more-options-toggle'>More Options (+)</a>
 		</div>
 
@@ -148,6 +225,7 @@
 				<input id="parallel-threads-box" type="text" value="4">
 				<label for="parallel-threads-box">Parallel downloads</label>
 			</div>
+
 		</div>
 
 		<button class='waves-effect waves-light z-depth-0 btn-large cyan darken-2 bottom-button' id='download-button'>Download</button>
@@ -157,7 +235,7 @@
 	<div class='sidebar' id='download-sidebar' style="display: none;">
 
 		<div class='step-number'>
-			5
+			6
 		</div>
 		<div class="step-title">
 			Downloading tiles
