@@ -4,14 +4,11 @@ from urllib.parse import urlparse
 from urllib.parse import parse_qs
 from urllib.parse import parse_qsl
 import urllib.request
-import cgi
+import urllib.error
 import uuid
 import random
 import string
-from cgi import parse_header, parse_multipart
 import argparse
-import uuid
-import random
 import time
 import json
 import shutil
@@ -20,6 +17,8 @@ import glob
 import os
 import base64
 import math
+import socket
+from http.client import HTTPSConnection, HTTPConnection
 
 from PIL import Image
 
@@ -29,6 +28,7 @@ class Utils:
 	def randomString():
 		return uuid.uuid4().hex.upper()[0:6]
 
+	@staticmethod
 	def getChildTiles(x, y, z):
 		childX = x * 2
 		childY = y * 2
@@ -41,6 +41,7 @@ class Utils:
 			(childX, childY+1, childZ),
 		]
 
+	@staticmethod
 	def makeQuadKey(tile_x, tile_y, level):
 		quadkey = ""
 		for i in range(level):
@@ -75,9 +76,17 @@ class Utils:
 			"quad": Utils.makeQuadKey(x, y, z),
 		}
 
+		# Replace placeholders with actual values
 		for key, value in replaceMap.items():
 			newKey = str("{" + str(key) + "}")
 			url = url.replace(newKey, value)
+
+		# Debug: Print the final URL to verify historical parameters are preserved
+		if "&t=" in url:
+			print(f"🔍 TARIHSEL URL OLUSTURULDU: {url}")
+			print(f"📍 Koordinatlar: x={x}, y={y}, z={z}")
+		else:
+			print(f"📍 Normal URL: {url}")
 
 		return url
 
@@ -114,24 +123,61 @@ class Utils:
 
 	@staticmethod
 	def downloadFile(url, destination, x, y, z):
-
 		url = Utils.qualifyURL(url, x, y, z)
-
 		code = 0
 
-		# monkey patching SSL certificate issue
-		# DONT use it in a prod/sensitive environment
-		ssl._create_default_https_context = ssl._create_unverified_context
-
 		try:
-			path, response = urllib.request.urlretrieve(url, destination)
-			code = 200
-		except urllib.error.URLError as e:
-			if not hasattr(e, "code"):
-				print(e)
-				code = -1
+			# Parse URL to get components
+			parsed_url = urlparse(url)
+			is_https = parsed_url.scheme == 'https'
+			host = parsed_url.netloc
+			path = parsed_url.path
+			if parsed_url.query:
+				path += '?' + parsed_url.query
+
+			# Create connection with timeout
+			if is_https:
+				# Create SSL context once and reuse
+				ssl_context = ssl._create_unverified_context()
+				conn = HTTPSConnection(host, timeout=15, context=ssl_context)
 			else:
-				code = e.code
+				conn = HTTPConnection(host, timeout=15)
+
+			# Make request with proper headers
+			headers = {
+				'User-Agent': 'MapTilesDownloader/1.0',
+				'Accept': 'image/*,*/*;q=0.8',
+				'Accept-Encoding': 'identity',
+				'Connection': 'close'
+			}
+
+			conn.request('GET', path, headers=headers)
+			response = conn.getresponse()
+			
+			code = response.status
+
+			if code == 200:
+				# Read and save the file
+				data = response.read()
+				with open(destination, 'wb') as f:
+					f.write(data)
+			else:
+				print(f"HTTP Error {code} for URL: {url}")
+
+			conn.close()
+
+		except socket.timeout:
+			print(f"Timeout downloading: {url}")
+			code = -2
+		except urllib.error.HTTPError as e:
+			print(f"HTTP Error {e.code}: {url}")
+			code = e.code
+		except urllib.error.URLError as e:
+			print(f"URL Error: {e} for {url}")
+			code = -1
+		except Exception as e:
+			print(f"Unexpected error downloading {url}: {e}")
+			code = -3
 
 		return code
 
@@ -162,9 +208,11 @@ class Utils:
 				childImages.append(image)
 			
 			canvas = Utils.mergeQuadTile(childImages)
-			canvas.save(destination, "PNG")
-			
-			return 200
+			if canvas:
+				canvas.save(destination, "PNG")
+				return 200
+			else:
+				return -4  # Error merging tiles
 
 		#TODO implement custom scale
 

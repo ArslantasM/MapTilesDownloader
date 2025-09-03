@@ -8,11 +8,12 @@ from urllib.parse import urlparse
 from urllib.parse import parse_qs
 from urllib.parse import parse_qsl
 import urllib.request
-import cgi
 import uuid
 import random
 import string
-from cgi import parse_header, parse_multipart
+from email.message import EmailMessage
+from email.parser import Parser
+from io import StringIO
 import argparse
 import uuid
 import random
@@ -37,24 +38,61 @@ class serverHandler(BaseHTTPRequestHandler):
 	def randomString(self):
 		return uuid.uuid4().hex.upper()[0:6]
 
+	def _parse_multipart_data(self, raw_data, content_type):
+		"""Parse multipart/form-data without cgi module"""
+		if 'boundary=' not in content_type:
+			return {}
+		
+		boundary = content_type.split('boundary=')[1].split(';')[0].strip('"')
+		boundary_bytes = ('--' + boundary).encode('utf-8')
+		
+		# Split by boundary
+		parts = raw_data.split(boundary_bytes)
+		form_data = {}
+		
+		for part in parts[1:-1]:  # Skip first empty and last closing parts
+			if not part.strip():
+				continue
+				
+			# Split headers and content
+			header_end = part.find(b'\r\n\r\n')
+			if header_end == -1:
+				continue
+				
+			headers = part[:header_end].decode('utf-8')
+			content = part[header_end + 4:].rstrip(b'\r\n')
+			
+			# Extract field name from Content-Disposition header
+			for line in headers.split('\r\n'):
+				if line.startswith('Content-Disposition:'):
+					if 'name="' in line:
+						name = line.split('name="')[1].split('"')[0]
+						form_data[name] = [content.decode('utf-8')]
+						break
+		
+		return form_data
+
 	def writerByType(self, type):
-		if(type == "mbtiles"):
+		if type == "mbtiles":
 			return MbtilesWriter
-		elif(type == "repo"):
+		elif type == "repo":
 			return RepoWriter
-		elif(type == "directory"):
+		elif type == "directory":
+			return FileWriter
+		else:
+			# Default to FileWriter if unknown type
 			return FileWriter
 
 	def do_POST(self):
 
-		ctype, pdict = cgi.parse_header(self.headers.get('Content-Type'))
-		#ctype, pdict = cgi.parse_header(self.headers['content-type'])
-		pdict['boundary'] = bytes(pdict['boundary'], "utf-8")
-				
-		content_len = int(self.headers.get('Content-length'))
-		pdict['CONTENT-LENGTH'] = content_len
-
-		postvars = cgi.parse_multipart(self.rfile, pdict)
+		content_type = self.headers.get('Content-Type', '')
+		content_len = int(self.headers.get('Content-length', 0))
+		
+		# Read the raw POST data
+		raw_data = self.rfile.read(content_len)
+		
+		# Parse multipart form data
+		postvars = self._parse_multipart_data(raw_data, content_type)
 
 		parts = urlparse(self.path)
 		if parts.path == '/download-tile':
@@ -201,23 +239,40 @@ class serverHandler(BaseHTTPRequestHandler):
 			return
 
 	def do_GET(self):
+		try:
+			parts = urlparse(self.path)
+			path = parts.path.strip('/')
+			if path == "":
+				path = "index.htm"
 
+			file = os.path.join("UI", path)
+			
+			# Check if file exists
+			if not os.path.exists(file):
+				self.send_response(404)
+				self.send_header("Content-Type", "text/html")
+				self.end_headers()
+				self.wfile.write(b"<h1>404 - File Not Found</h1>")
+				return
+			
+			mime = mimetypes.MimeTypes().guess_type(file)[0]
+			if mime is None:
+				mime = "application/octet-stream"
 
-		parts = urlparse(self.path)
-		path = parts.path.strip('/')
-		if path == "":
-			path = "index.htm"
-
-		file = os.path.join("./UI/", path)
-		mime = mimetypes.MimeTypes().guess_type(file)[0] 
-
-		self.send_response(200)
-		# self.send_header("Access-Control-Allow-Origin", "*")
-		self.send_header("Content-Type", mime)
-		self.end_headers()
-		
-		with open(file, "rb") as f:
-			self.wfile.write(f.read())
+			self.send_response(200)
+			# self.send_header("Access-Control-Allow-Origin", "*")
+			self.send_header("Content-Type", mime)
+			self.end_headers()
+			
+			with open(file, "rb") as f:
+				self.wfile.write(f.read())
+				
+		except Exception as e:
+			print(f"Error serving file {self.path}: {e}")
+			self.send_response(500)
+			self.send_header("Content-Type", "text/html")
+			self.end_headers()
+			self.wfile.write(b"<h1>500 - Internal Server Error</h1>")
 		
 class serverThreadedHandler(ThreadingMixIn, HTTPServer):
 	"""Handle requests in a separate thread."""
